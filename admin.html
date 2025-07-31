@@ -392,6 +392,50 @@
             border: 1px solid #fed7d7;
         }
         
+        /* Login Form */
+        .login-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: var(--light);
+        }
+        
+        .login-card {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 20px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 400px;
+            padding: 30px;
+        }
+        
+        .login-logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .login-logo img {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            margin-bottom: 15px;
+        }
+        
+        .login-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--dark);
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .login-error {
+            color: var(--danger);
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        
         /* Responsive */
         @media (max-width: 768px) {
             .admin-sidebar {
@@ -412,7 +456,35 @@
     </style>
 </head>
 <body>
-    <div class="admin-layout">
+    <!-- Login Section (hidden by default if logged in) -->
+    <div id="login-section" class="login-container" style="display: none;">
+        <div class="login-card">
+            <div class="login-logo">
+                <img src="https://i.postimg.cc/CxP2JBGQ/Chat-GPT-Image-Jul-4-2025-10-08-25-PM.png" alt="Logo">
+            </div>
+            <h1 class="login-title">Admin Login</h1>
+            <div id="login-error" class="login-error"></div>
+            <form id="login-form">
+                <div class="form-group">
+                    <label class="form-label">Username</label>
+                    <input type="text" class="form-control" id="login-username" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Password</label>
+                    <input type="password" class="form-control" id="login-password" required>
+                </div>
+                <div class="form-group">
+                    <button type="submit" class="btn btn-primary" style="width: 100%;">
+                        <i class="fas fa-sign-in-alt"></i>
+                        <span>Login</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Admin Panel (hidden by default until logged in) -->
+    <div id="admin-panel" class="admin-layout" style="display: none;">
         <!-- Sidebar -->
         <div class="admin-sidebar">
             <div class="admin-brand">
@@ -772,17 +844,41 @@
         let orders = [];
         let isAdminLoggedIn = localStorage.getItem('adminLoggedIn') === 'true';
 
-        // Check if admin is already logged in
-        if (!isAdminLoggedIn) {
-            // Redirect to login page if not logged in
-            window.location.href = "admin-login.html";
-        } else {
-            // Load all data
-            loadProducts();
-            loadCategories();
-            loadHeroSlides();
-            loadOrders();
+        // Check authentication status on page load
+        function checkAuth() {
+            if (isAdminLoggedIn) {
+                // Show admin panel
+                document.getElementById('admin-panel').style.display = 'flex';
+                document.getElementById('login-section').style.display = 'none';
+                
+                // Load all data
+                loadProducts();
+                loadCategories();
+                loadHeroSlides();
+                loadOrders();
+            } else {
+                // Show login form
+                document.getElementById('admin-panel').style.display = 'none';
+                document.getElementById('login-section').style.display = 'flex';
+            }
         }
+
+        // Login form submission
+        document.getElementById('login-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const username = document.getElementById('login-username').value;
+            const password = document.getElementById('login-password').value;
+            
+            if (username === ADMIN_CREDENTIALS.username && password === ADMIN_CREDENTIALS.password) {
+                // Successful login
+                localStorage.setItem('adminLoggedIn', 'true');
+                isAdminLoggedIn = true;
+                checkAuth();
+            } else {
+                // Failed login
+                document.getElementById('login-error').textContent = 'Invalid username or password';
+            }
+        });
 
         // Show alert message
         function showAlert(message, type = 'success') {
@@ -1397,10 +1493,15 @@
             const slideIndex = slideNumber - 1;
             if (slideIndex >= heroSlides.length) return;
             
-            const image = document.getElementById(`hero-slide-${slideNumber}-image`).value;
             const title = document.getElementById(`hero-slide-${slideNumber}-title`).value;
             const description = document.getElementById(`hero-slide-${slideNumber}-desc`).value;
             const buttonText = document.getElementById(`hero-slide-${slideNumber}-btn`).value;
+            
+            // Keep the existing image unless it was changed
+            const existingSlide = heroSlides[slideIndex];
+            const image = document.getElementById(`hero-slide-${slideNumber}-image`) ? 
+                          document.getElementById(`hero-slide-${slideNumber}-image`).value : 
+                          existingSlide.image;
             
             heroSlides[slideIndex] = {
                 image,
@@ -1426,8 +1527,24 @@
             
             try {
                 const url = await uploadImageToImageBB(file);
-                document.getElementById(`hero-slide-${slideNumber}-image`).value = url;
-                document.querySelector(`#hero-slide-${slideNumber}-preview`).src = url;
+                
+                // Create a hidden input to store the new image URL
+                let imageInput = document.getElementById(`hero-slide-${slideNumber}-image`);
+                if (!imageInput) {
+                    imageInput = document.createElement('input');
+                    imageInput.type = 'hidden';
+                    imageInput.id = `hero-slide-${slideNumber}-image`;
+                    input.parentNode.appendChild(imageInput);
+                }
+                
+                imageInput.value = url;
+                
+                // Update the preview
+                const preview = input.parentNode.previousElementSibling.querySelector('img');
+                if (preview) {
+                    preview.src = url;
+                }
+                
                 showAlert('Image uploaded successfully!');
             } catch (error) {
                 console.error('Upload failed:', error);
@@ -1483,13 +1600,18 @@
         // Admin logout
         function adminLogout() {
             localStorage.removeItem('adminLoggedIn');
-            window.location.href = "admin-login.html";
+            isAdminLoggedIn = false;
+            checkAuth();
         }
 
         // Initialize the page
         document.addEventListener('DOMContentLoaded', () => {
-            // Show dashboard by default
-            showSection('dashboard');
+            checkAuth();
+            
+            if (isAdminLoggedIn) {
+                // Show dashboard by default
+                showSection('dashboard');
+            }
         });
     </script>
 </body>
